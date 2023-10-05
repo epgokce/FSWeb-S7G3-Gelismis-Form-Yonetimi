@@ -1,123 +1,209 @@
-import React, { useState } from 'react';
-import * as Yup from 'yup';
-import axios from 'axios';
+import React, { useState, useEffect } from "react";
+import * as yup from "yup";
+import axios from "axios";
 
-import './Form.css'
-
-const Form = () => {
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    password: '',
+const Form = (props) => {
+  const { addMember, editMemberFn, editMember } = props;
+  const initialState = editMember || {
+    name: "",
+    email: "",
+    password: "",
     terms: false,
-  });
-
-  const [errors, setErrors] = useState({
-    name: '',
-    email: '',
-    password: '',
-    terms: '',
-  });
-
-  const [kullanicilar, setKullanicilar] = useState([]);
-
-  const handleChange = (e) => {
-    const { name, value, checked, type } = e.target;
-    const newValue = type === 'checkbox' ? checked : value;
-
-    setFormData((prevData) => ({
-      ...prevData,
-      [name]: newValue,
-    }));
   };
+  const [formData, setFormData] = useState(initialState);
+  const [formErrors, setFormErrors] = useState({});
+  const [isFormValid, setIsFormValid] = useState(false);
+  const [roller, setRoller] = useState(["Frontend", "Backend", "DevOps"]);
 
-  const handleSubmit = async (e) => {
+  const reset = () => {
+    setFormData(initialState);
+    setFormErrors({});
+    setIsFormValid(false);
+  };
+  useEffect(() => {
+    if (editMember) {
+      setFormData(editMember);
+    }
+  }, [editMember]);
+
+  const myFormSubmit = (e) => {
     e.preventDefault();
+    console.log(formData);
 
-    try {
-      const schema = Yup.object().shape({
-        name: Yup.string().required('Ad ve soyad zorunludur.'),
-        email: Yup.string().email('Geçerli bir email adresi girin.').required('Email zorunludur.'),
-        password: Yup.string().min(6, 'Şifre en az 6 karakter olmalıdır.').required('Şifre zorunludur.'),
-        terms: Yup.boolean().oneOf([true], 'Kullanım şartlarını kabul etmelisiniz.'),
-      });
-
-      await schema.validate(formData, { abortEarly: false });
-      const response = await axios.post('https://reqres.in/api/users', formData);
-      console.log('POST Response:', response.data);
-
-      setKullanicilar((prevKullanicilar) => [...prevKullanicilar, response.data]);
-    } catch (err) {
-      if (err instanceof Yup.ValidationError) {
-        const newErrors = {};
-        err.inner.forEach((validationError) => {
-          newErrors[validationError.path] = validationError.message;
+    if (editMember) {
+      axios
+        .post("https://reqres.in/api/s7g3", formData)
+        .then(function (response) {
+          console.log(response);
+          // app.js içindeki state'i güncelle
+          editMemberFn(response.data);
+          reset();
+        })
+        .catch(function (error) {
+          console.log(error);
         });
-        setErrors(newErrors);
-      } else {
-        console.error('POST Error:', err);
-      }
+    } else {
+      axios
+        .post("https://reqres.in/api/s7g3", formData)
+        .then(function (response) {
+          console.log(response);
+          // app.js içindeki state'i güncelle
+          addMember(response.data);
+          reset();
+        })
+        .catch(function (error) {
+          console.log(error);
+        });
     }
   };
+  let yupSchemaPatron = yup.object({
+    name: yup
+      .string()
 
+      .required("Must include name.")
+      .min(3, "Must be at least 3 characters long."),
+    email: yup
+      .string()
+      .email("Must be a valid email address.")
+      .required("Must include email address.")
+      .notOneOf(["waffle@syrup.com"], "Email already registered."),
+    password: yup
+      .string()
+      .required("Password is Required")
+      .matches(
+        /^(?=.*\d)(?=.*[!@#$%^&*-+/:;?<()[{}>.,])(?=.*[a-z])(?=.*[A-Z]).{8,}$/,
+        "Must include uppercase, lowercase, number, symbol and must be at least 8 chars long."
+      ),
+    terms: yup
+      .boolean()
+      .oneOf([true], "You must read and agree to the Terms and Conditions"),
+  });
+
+  const validateInput = (name, value) => {
+    yup
+      .reach(yupSchemaPatron, name)
+      .validate(value)
+      .then((valid) => {
+        console.log("validateInput", valid);
+        const newErrors = {
+          ...formErrors,
+          [name]: null,
+        };
+        setFormErrors(newErrors);
+      })
+      .catch((err) => {
+        console.log(err.name, err.errors);
+        const newErrors = {
+          ...formErrors,
+          [name]: err.errors[0],
+        };
+        setFormErrors(newErrors);
+      });
+  };
+
+  const validateForm = (formData) => {
+    yupSchemaPatron
+      .isValid(formData)
+      .then((valid) => {
+        console.log("validateForm", valid);
+        setIsFormValid(valid);
+      })
+      .catch((err) => {
+        console.log("validateForm", err.name, err.errors);
+        console.log(err);
+        setIsFormValid(false);
+      });
+  };
+
+  const changeHandler = (e) => {
+    const { name, value, checked, type } = e.target;
+
+    const inputValue = type === "checkbox" ? checked : value;
+
+    const updatedFormData = {
+      ...formData,
+      [name]: inputValue,
+    };
+
+    setFormData(updatedFormData);
+
+    validateInput(name, inputValue);
+    validateForm(updatedFormData);
+  };
   return (
-    <form onSubmit={handleSubmit}>
-      <div className='div1'>
-        <label className='label1' htmlFor="name">Ad ve Soyad</label>
-        <input
-          type="text"
-          id="name"
-          name="name"
-          placeholder="Ad ve Soyad giriniz"
-          value={formData.name}
-          onChange={handleChange}
-        />
-        {errors.name && <span>{errors.name}</span>}
-      </div>
-      <div className='div2'>
-        <label  className='label2' htmlFor="email">Email</label>
-        <input
-          type="email"
-          id="email"
-          name="email"
-          placeholder="E-posta adresinizi giriniz"
-          value={formData.email}
-          onChange={handleChange}
-        />
-        {errors.email && <span>{errors.email}</span>}
-      </div>
-      <div className='div3'>
-        <label className='label3' htmlFor="password">Şifre</label>
-        <input
-          type="password"
-          id="password"
-          name="password"
-          placeholder="Şifrenizi giriniz"
-          value={formData.password}
-          onChange={handleChange}
-        />
-        {errors.password && <span>{errors.password}</span>}
-      </div>
-      <div className='div4'>
-        <label className='label4'  htmlFor="terms">
-          <input
-            type="checkbox"
-            id="terms"
-            name="terms"
-            checked={formData.terms}
-            onChange={handleChange}
-          />
-          Kullanım Şartlarına Kabul Ediyorum.
-        </label>
-        {errors.terms && <span>{errors.terms}</span>}
-      </div>
-      <button type="submit">Gönder</button>
+    <form onSubmit={myFormSubmit}>
       <div>
-        <h2>Kullanıcılar</h2>
-        <pre>{JSON.stringify(kullanicilar, null, 2)}</pre>
+        <label htmlFor="name">
+          İsim:
+          <input
+            className="input"
+            name="name"
+            type="text"
+            value={formData.name}
+            onChange={changeHandler}
+          />
+        </label>
+        {formErrors.isim && <p>{formErrors.name}</p>}
       </div>
+      <div>
+        <label htmlFor="email">
+          Email:
+          <input
+            className="input"
+            name="email"
+            type="email"
+            value={formData.email}
+            onChange={changeHandler}
+          />
+        </label>
+        {formErrors.isim && <p>{formErrors.email}</p>}
+      </div>
+      <div>
+        <label>
+          Rol:
+          <select name="rol" value={formData.rol} onChange={changeHandler}>
+            <option selected>-</option>
+            {roller.map((r, i) => (
+              <option key={i} value={r}>
+                {r}
+              </option>
+            ))}
+          </select>
+        </label>
+        {formErrors.isim && <p>{formErrors.rol}</p>}
+      </div>
+      <div>
+        <label htmlFor="password">
+          Password:
+          <input
+            className="input"
+            name="password"
+            type="password"
+            value={formData.password}
+            onChange={changeHandler}
+          />
+        </label>
+        {formErrors.isim && <p>{formErrors.password}</p>}
+      </div>
+      <div>
+        <input
+          name="terms"
+          type="checkbox"
+          checked={formData.terms}
+          onChange={changeHandler}
+        />
+        <label className="terms" htmlFor="terms">
+          I agree <a href="./components/Terms">Terms and Conditions</a>
+        </label>
+        {formErrors.isim && <p>{formErrors.terms}</p>}
+      </div>
+      <button onClick={reset} type="button">
+        Cancel
+      </button>
+      <button disabled={!isFormValid} type="submit">
+        Sign Up
+      </button>
     </form>
   );
 };
-
 export default Form;
